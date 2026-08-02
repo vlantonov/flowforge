@@ -11,8 +11,8 @@
 
 extern "C" {
 
-/* Exported data symbol — pre-flight version check by host before calling entry. */
-const uint32_t flowforge_plugin_abi_version __attribute__((used, visibility("default"))) = FLOWFORGE_PLUGIN_ABI_VERSION;
+/* extern forces external linkage (C++ const is internal by default) so dlsym can find this symbol. */
+extern const uint32_t flowforge_plugin_abi_version __attribute__((used, visibility("default"))) = FLOWFORGE_PLUGIN_ABI_VERSION;
 
 static uint32_t abi_version_fn() noexcept { return FLOWFORGE_PLUGIN_ABI_VERSION; }
 static const char* name_fn()     noexcept { return "plugin_dns"; }
@@ -136,6 +136,9 @@ static int process(flowforge_buf_t buf, flowforge_result_t* out) {
         /* Response */
         if (rcode == 0) {
             out->severity = FLOWFORGE_SEVERITY_INFO;
+        } else if (rcode == 2) {
+            /* SERVFAIL — server-side failure, treat as alert */
+            out->severity = FLOWFORGE_SEVERITY_ALERT;
         } else {
             out->severity = FLOWFORGE_SEVERITY_WARN;
         }
