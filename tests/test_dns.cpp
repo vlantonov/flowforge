@@ -121,6 +121,51 @@ TEST_F(DnsPluginTest, ValidResponseRcode0IsInfo) {
     EXPECT_EQ(FLOWFORGE_SEVERITY_INFO, r.severity);
 }
 
+/* QA: FR-16 — pointer loop must be caught within ≤128 hops. */
+TEST_F(DnsPluginTest, PointerLoopIsParseError) {
+    /* Craft a QNAME pointer that points back to itself (byte offset 12). */
+    static const uint8_t pkt[] = {
+        0xDE, 0xAD,             /* ID */
+        0x01, 0x00,             /* flags: QR=0, RD=1 */
+        0x00, 0x01,             /* QDCOUNT=1 */
+        0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        /* QNAME: pointer at offset 12 pointing back to offset 12 (self-loop) */
+        0xC0, 0x0C,
+        0x00, 0x01,             /* QTYPE = A */
+        0x00, 0x01              /* QCLASS = IN */
+    };
+
+    flowforge_result_t r{};
+    flowforge_buf_t buf = {pkt, sizeof(pkt)};
+    int rc = plugin->process(buf, &r);
+    /* Must not crash; must signal an error (negative rc OR PARSE_ERROR status). */
+    EXPECT_TRUE(rc < 0 || r.status == FLOWFORGE_STATUS_PARSE_ERROR)
+        << "Expected error for pointer-loop packet; got rc=" << rc
+        << " status=" << r.status;
+}
+
+/* QA: design §5.2.4 — RCODE=2 (SERVFAIL) must map to ALERT, not WARN. */
+TEST_F(DnsPluginTest, ServfailResponseIsAlert) {
+    static const uint8_t pkt[] = {
+        0x12, 0x34,
+        0x81, 0x82,             /* QR=1, RD=1, RA=1, RCODE=2 (SERVFAIL) */
+        0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x03, 'f','o','o',
+        0x00,
+        0x00, 0x01, 0x00, 0x01
+    };
+
+    flowforge_result_t r{};
+    flowforge_buf_t buf = {pkt, sizeof(pkt)};
+    ASSERT_EQ(0, plugin->process(buf, &r));
+    EXPECT_EQ(FLOWFORGE_STATUS_OK, r.status);
+    /* Per design §5.2.4: RCODE=2 must be ALERT. */
+    EXPECT_EQ(FLOWFORGE_SEVERITY_ALERT, r.severity)
+        << "SERVFAIL (RCODE=2) must map to ALERT per design spec §5.2.4";
+}
+
 TEST_F(DnsPluginTest, PluginNameIsCorrect) {
     EXPECT_STREQ("plugin_dns", plugin->name());
 }
