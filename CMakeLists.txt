@@ -65,11 +65,30 @@ add_executable(flowforge_test_loader
 target_link_libraries(flowforge_test_loader PRIVATE flowforge_plugin_api GTest::gtest_main ${CMAKE_DL_LIBS})
 target_compile_options(flowforge_test_loader PRIVATE -Wall -Wextra -Wpedantic)
 
+add_executable(flowforge_test_version_mismatch tests/test_version_mismatch.cpp src/host/loader.cpp)
+target_link_libraries(flowforge_test_version_mismatch PRIVATE flowforge_plugin_api GTest::gtest_main ${CMAKE_DL_LIBS})
+target_compile_options(flowforge_test_version_mismatch PRIVATE -Wall -Wextra -Wpedantic)
+
+add_executable(flowforge_test_multi_dispatch
+    tests/test_multi_dispatch.cpp
+    src/host/loader.cpp
+    src/host/dispatcher.cpp
+)
+target_link_libraries(flowforge_test_multi_dispatch PRIVATE flowforge_plugin_api GTest::gtest_main ${CMAKE_DL_LIBS})
+target_compile_options(flowforge_test_multi_dispatch PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_definitions(flowforge_test_multi_dispatch PRIVATE
+    PLUGIN_HTTP_PATH="$<TARGET_FILE:plugin_http>"
+    PLUGIN_DNS_PATH="$<TARGET_FILE:plugin_dns>"
+)
+add_dependencies(flowforge_test_multi_dispatch plugin_http plugin_dns)
+
 include(GoogleTest)
 gtest_discover_tests(flowforge_test_http)
 gtest_discover_tests(flowforge_test_dns)
 gtest_discover_tests(flowforge_test_tls)
 gtest_discover_tests(flowforge_test_loader)
+gtest_discover_tests(flowforge_test_version_mismatch)
+gtest_discover_tests(flowforge_test_multi_dispatch)
 
 # Install rules
 install(TARGETS flowforge DESTINATION bin)
